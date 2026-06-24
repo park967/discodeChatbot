@@ -40,6 +40,7 @@ A Discord slash-command bot that can look up basic game information.
 - `/ping` checks whether the bot is online.
 - `/echo text:<message>` repeats a message privately.
 - `/game name:<game title>` searches Steam and returns basic game information.
+- `/game name:<game title> multiplayer:true` searches for a multiplayer-supported match.
 
 If `DISCORD_GUILD_ID` is set, commands are registered only to that server and usually update quickly. If it is omitted, commands are registered globally and may take longer to appear.
 

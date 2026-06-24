@@ -2,17 +2,31 @@ const STEAM_SEARCH_URL = 'https://store.steampowered.com/api/storesearch';
 const STEAM_DETAILS_URL = 'https://store.steampowered.com/api/appdetails';
 const STEAM_APP_URL = 'https://store.steampowered.com/app';
 
-export async function findGameByName(name) {
-  const searchResult = await searchSteam(name);
-  const firstMatch = searchResult.items?.[0];
+const MULTIPLAYER_CATEGORY_KEYWORDS = [
+  'multi-player',
+  'multiplayer',
+  'co-op',
+  'coop',
+  'pvp',
+  'mmo',
+];
 
-  if (!firstMatch?.id) {
-    return null;
+export async function findGameByName(name, options = {}) {
+  const searchResult = await searchSteam(name);
+  const matches = searchResult.items?.slice(0, options.multiplayerOnly ? 10 : 1) || [];
+
+  for (const match of matches) {
+    if (!match?.id) continue;
+
+    const details = await getSteamAppDetails(match.id);
+    const game = normalizeGame(match, details);
+
+    if (!options.multiplayerOnly || game.isMultiplayer) {
+      return game;
+    }
   }
 
-  const details = await getSteamAppDetails(firstMatch.id);
-
-  return normalizeGame(firstMatch, details);
+  return null;
 }
 
 async function searchSteam(term) {
@@ -67,6 +81,8 @@ function normalizeGame(searchResult, details) {
     releaseDate: details?.release_date?.date || null,
     price: formatPrice(details, searchResult),
     developers: formatList(details?.developers),
+    isMultiplayer: hasMultiplayer(details?.categories),
+    multiplayerSummary: formatMultiplayer(details?.categories),
     genres: formatList(details?.genres?.map((genre) => genre.description)),
     platforms: formatPlatforms(details?.platforms),
   };
@@ -101,6 +117,33 @@ function formatPrice(details, searchResult) {
 function formatList(items) {
   if (!items?.length) return null;
   return items.slice(0, 5).join(', ');
+}
+
+function hasMultiplayer(categories) {
+  return getMultiplayerCategories(categories).length > 0;
+}
+
+function formatMultiplayer(categories) {
+  const multiplayerCategories = getMultiplayerCategories(categories);
+
+  if (!multiplayerCategories.length) {
+    return 'No multiplayer tags found';
+  }
+
+  return formatList(multiplayerCategories);
+}
+
+function getMultiplayerCategories(categories) {
+  if (!categories?.length) return [];
+
+  return categories
+    .map((category) => category.description)
+    .filter((description) => {
+      const normalized = description.toLowerCase();
+      return MULTIPLAYER_CATEGORY_KEYWORDS.some((keyword) =>
+        normalized.includes(keyword),
+      );
+    });
 }
 
 function formatPlatforms(platforms) {

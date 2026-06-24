@@ -10,17 +10,27 @@ export const data = new SlashCommandBuilder()
       .setDescription('Game title to search for.')
       .setRequired(true)
       .setMaxLength(100),
+  )
+  .addBooleanOption((option) =>
+    option
+      .setName('multiplayer')
+      .setDescription('Only return a game that supports multiplayer.'),
   );
 
 export async function execute(interaction) {
   const name = interaction.options.getString('name', true);
+  const multiplayerOnly = interaction.options.getBoolean('multiplayer') ?? false;
 
   await interaction.deferReply();
 
-  const game = await findGameByName(name);
+  const game = await findGameByName(name, { multiplayerOnly });
 
   if (!game) {
-    await interaction.editReply(`No game found for "${name}".`);
+    await interaction.editReply(
+      multiplayerOnly
+        ? `No multiplayer game found for "${name}".`
+        : `No game found for "${name}".`,
+    );
     return;
   }
 
@@ -33,6 +43,7 @@ export async function execute(interaction) {
       { name: 'Release date', value: game.releaseDate || 'Unknown', inline: true },
       { name: 'Price', value: game.price || 'Unknown', inline: true },
       { name: 'Developers', value: game.developers || 'Unknown', inline: true },
+      { name: 'Multiplayer', value: game.multiplayerSummary, inline: false },
       { name: 'Genres', value: game.genres || 'Unknown', inline: false },
       { name: 'Platforms', value: game.platforms || 'Unknown', inline: false },
     )
