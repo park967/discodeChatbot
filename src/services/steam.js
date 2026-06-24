@@ -9,6 +9,11 @@ const MULTIPLAYER_CATEGORY_KEYWORDS = [
   'coop',
   'pvp',
   'mmo',
+  '\ub2e4\uc911',
+  '\uba40\ud2f0',
+  '\ud611\ub3d9',
+  '\ucf54\uc635',
+  '\uc628\ub77c\uc778',
 ];
 
 export async function findGameByName(name, options = {}) {
