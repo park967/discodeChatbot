@@ -15,22 +15,48 @@ export const data = new SlashCommandBuilder()
     option
       .setName('multiplayer')
       .setDescription('Only return a game that supports multiplayer.'),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('min_price')
+      .setDescription('Minimum discounted price in KRW.')
+      .setMinValue(0),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName('max_price')
+      .setDescription('Maximum discounted price in KRW.')
+      .setMinValue(0),
+  )
+  .addBooleanOption((option) =>
+    option
+      .setName('on_sale')
+      .setDescription('Only return a game that is currently discounted.'),
   );
 
 export async function execute(interaction) {
   const name = interaction.options.getString('name', true);
   const multiplayerOnly = interaction.options.getBoolean('multiplayer') ?? false;
+  const minPrice = interaction.options.getInteger('min_price');
+  const maxPrice = interaction.options.getInteger('max_price');
+  const onSaleOnly = interaction.options.getBoolean('on_sale') ?? false;
 
   await interaction.deferReply();
 
-  const game = await findGameByName(name, { multiplayerOnly });
+  if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) {
+    await interaction.editReply('min_price must be less than or equal to max_price.');
+    return;
+  }
+
+  const game = await findGameByName(name, {
+    maxPrice,
+    minPrice,
+    multiplayerOnly,
+    onSaleOnly,
+  });
 
   if (!game) {
-    await interaction.editReply(
-      multiplayerOnly
-        ? `No multiplayer game found for "${name}".`
-        : `No game found for "${name}".`,
-    );
+    await interaction.editReply(`No game found for "${name}" with those filters.`);
     return;
   }
 
@@ -42,6 +68,7 @@ export async function execute(interaction) {
     .addFields(
       { name: 'Release date', value: game.releaseDate || 'Unknown', inline: true },
       { name: 'Price', value: game.price || 'Unknown', inline: true },
+      { name: 'Discount', value: game.discount || 'None', inline: true },
       { name: 'Developers', value: game.developers || 'Unknown', inline: true },
       { name: 'Multiplayer', value: game.multiplayerSummary, inline: false },
       { name: 'Genres', value: game.genres || 'Unknown', inline: false },

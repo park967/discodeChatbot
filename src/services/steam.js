@@ -12,8 +12,15 @@ const MULTIPLAYER_CATEGORY_KEYWORDS = [
 ];
 
 export async function findGameByName(name, options = {}) {
+  const filters = {
+    maxPrice: options.maxPrice ?? null,
+    minPrice: options.minPrice ?? null,
+    multiplayerOnly: options.multiplayerOnly ?? false,
+    onSaleOnly: options.onSaleOnly ?? false,
+  };
   const searchResult = await searchSteam(name);
-  const matches = searchResult.items?.slice(0, options.multiplayerOnly ? 10 : 1) || [];
+  const maxMatches = hasFilters(filters) ? 20 : 1;
+  const matches = searchResult.items?.slice(0, maxMatches) || [];
 
   for (const match of matches) {
     if (!match?.id) continue;
@@ -21,7 +28,7 @@ export async function findGameByName(name, options = {}) {
     const details = await getSteamAppDetails(match.id);
     const game = normalizeGame(match, details);
 
-    if (!options.multiplayerOnly || game.isMultiplayer) {
+    if (matchesFilters(game, filters)) {
       return game;
     }
   }
@@ -80,12 +87,52 @@ function normalizeGame(searchResult, details) {
     description: cleanText(details?.short_description),
     releaseDate: details?.release_date?.date || null,
     price: formatPrice(details, searchResult),
+    finalPriceKrw: getFinalPriceKrw(details),
+    discount: formatDiscount(details),
+    discountPercent: details?.price_overview?.discount_percent || 0,
     developers: formatList(details?.developers),
     isMultiplayer: hasMultiplayer(details?.categories),
     multiplayerSummary: formatMultiplayer(details?.categories),
     genres: formatList(details?.genres?.map((genre) => genre.description)),
     platforms: formatPlatforms(details?.platforms),
   };
+}
+
+function hasFilters(options) {
+  return Boolean(
+    options.multiplayerOnly ||
+      options.onSaleOnly ||
+      options.minPrice !== null ||
+      options.maxPrice !== null,
+  );
+}
+
+function matchesFilters(game, options) {
+  if (options.multiplayerOnly && !game.isMultiplayer) {
+    return false;
+  }
+
+  if (options.onSaleOnly && game.discountPercent <= 0) {
+    return false;
+  }
+
+  if (options.minPrice !== null && !isPriceAtLeast(game, options.minPrice)) {
+    return false;
+  }
+
+  if (options.maxPrice !== null && !isPriceAtMost(game, options.maxPrice)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isPriceAtLeast(game, minPrice) {
+  return game.finalPriceKrw !== null && game.finalPriceKrw >= minPrice;
+}
+
+function isPriceAtMost(game, maxPrice) {
+  return game.finalPriceKrw !== null && game.finalPriceKrw <= maxPrice;
 }
 
 function cleanText(value) {
@@ -112,6 +159,31 @@ function formatPrice(details, searchResult) {
   }
 
   return null;
+}
+
+function getFinalPriceKrw(details) {
+  if (details?.is_free) {
+    return 0;
+  }
+
+  if (typeof details?.price_overview?.final === 'number') {
+    return Math.round(details.price_overview.final / 100);
+  }
+
+  return null;
+}
+
+function formatDiscount(details) {
+  const price = details?.price_overview;
+
+  if (!price?.discount_percent) {
+    return null;
+  }
+
+  const original = price.initial_formatted || `${Math.round(price.initial / 100)} KRW`;
+  const final = price.final_formatted || `${Math.round(price.final / 100)} KRW`;
+
+  return `${price.discount_percent}% off (${original} -> ${final})`;
 }
 
 function formatList(items) {
